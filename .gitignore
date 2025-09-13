@@ -1,0 +1,248 @@
+# ==========================================
+# Performance Analysis Project .gitignore
+# ==========================================
+
+# Keep only SVG flame graphs, filter out all perf data and intermediates
+
+# ====================
+# Perf Data Files
+# ====================
+# Raw perf data files (binary format)
+*.data
+perf.data*
+
+# Perf script output (text format)
+*.perf
+out.perf
+
+# Folded stack traces (intermediate format)
+*.folded
+
+
+# Perf reports and other outputs
+perf.report
+perf.script
+
+# ====================
+# Flame Graph Intermediates
+# ====================
+# Keep only the final SVG files, remove all intermediate processing files
+flamegraphs/**/perf.data*
+flamegraphs/**/out.perf
+flamegraphs/**/out.folded
+flamegraphs/**/out2.folded
+flamegraphs/**/*.data
+
+# BUT keep the SVG files - these are our final output!
+!flamegraphs/**/*.svg
+
+# ====================
+# Python Cache & Bytecode
+# ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ====================
+# Virtual Environments
+# ====================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv_dbg/
+
+# ====================
+# IDE & Editor Files
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ====================
+# Jupyter Notebooks
+# ====================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+*.ipynb
+
+# ====================
+# Logs & Temporary Files
+# ====================
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# ====================
+# OS Generated Files
+# ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ====================
+# Profiling Output Files
+# ====================
+# py-spy output
+*.svg.tmp
+profile_*.svg
+
+# gprof output
+gmon.out
+
+# callgrind output
+callgrind.out.*
+
+# ====================
+# Test Results & Coverage
+# ====================
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ====================
+# Package Manager Files
+# ====================
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ====================
+# Large Data Files
+# ====================
+# Disk images and large binaries
+*.img
+*.iso
+*.vmdk
+*.qcow2
+
+# Large datasets
+datasets/
+data/large/
+*.csv.gz
+*.json.gz
+
+# ====================
+# Build & Compile Output
+# ====================
+*.o
+*.a
+*.lib
+*.dll
+*.exe
+*.out
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+!*/Makefile
+
+# ====================
+# Documentation Build
+# ====================
+docs/_build/
+.readthedocs.yml
+
+# ====================
+# Security & Config
+# ====================
+.env.local
+.env.production
+config.local.json
+secrets.json
+*.pem
+*.key
+!test.key
+
+# ====================
+# SPECIFIC TO THIS PROJECT
+# ====================
+
+# Keep benchmark scripts but not their output
+clean_benchmarks/*.log
+clean_benchmarks/benchmark_*.txt
+clean_benchmarks/results_*.json
+
+# pyperformance build artifacts
+pyperformance/build/
+pyperformance/dist/
+
+# FlameGraph temporary files
+FlameGraph/*.tmp
+FlameGraph/test_*
+
+# Specific large files we know about
+jammy-server-cloudimg-amd64-disk-kvm.img
+net.dir.on.csl-bytes
+
+# ====================
+# WHITELIST - Files to KEEP
+# ====================
+# Explicitly keep these important files even if they match patterns above
+!*.svg
+!flamegraphs/**/*.svg
+!README.md
+!LICENSE
+!requirements.txt
+!pyproject.toml
+!Makefile
+!CMakeLists.txt
+!docker-compose*.yml
+!Dockerfile*
+!*.py
+!*.sh
+!*.pl
+!*.thrift
+
+# Keep configuration files
+!config.json
+!*.yaml
+!*.yml
+!*.toml
+
+# Keep documentation
+!docs/**
+!*.rst
+!*.md
