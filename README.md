@@ -43,6 +43,12 @@ The project currently focuses on the `crypto_pyaes` and `mdp` workloads from [`p
 └── .gitignore                   # VCS hygiene for generated artifacts
 ```
 
+> **Important:** The `bm_crypto_pyaes/` and `bm_mdp/` directories within the pyperformance submodule contain the core benchmark implementations that are central to this hardware/software co-design study. Each directory includes:
+> 
+> - **Multiple optimization variants**: These represent different levels of algorithmic and implementation optimizations, from clean baseline implementations to highly optimized versions with techniques like loop unrolling, memory access optimization, and numerical library integration.
+> - **`no_pyperf_versions/` subdirectories**: These contain standalone Python scripts that can be executed directly without the pyperf framework wrapper, making them suitable for detailed profiling, debugging, and hardware accelerator design analysis.
+> 
+
 > **Note:** The `results_for_reports/` directory contains the flame graphs and data used in the PDF report documents. Updated (and slightly different) results reside under the `results/` & `reports/` directories.
 
 ## Prerequisites
