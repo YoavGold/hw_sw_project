@@ -1,0 +1,32 @@
+# started on Sat Oct 25 22:12:45 2025
+
+
+ Performance counter stats for '.venv_dbg/bin/python3 pyperformance/pyperformance/data-files/benchmarks/bm_crypto_pyaes/no_pyperf_versions/pyaes_clean.py':
+
+         62,208.98 msec task-clock                #    1.000 CPUs utilized          
+               197      context-switches          #    3.167 /sec                   
+                 0      cpu-migrations            #    0.000 /sec                   
+            12,992      page-faults               #  208.844 /sec                   
+   161,521,331,479      cycles                    #    2.596 GHz                      (30.76%)
+   372,253,051,988      instructions              #    2.30  insn per cycle           (38.46%)
+    94,684,908,064      branches                  #    1.522 G/sec                    (38.47%)
+       351,054,935      branch-misses             #    0.37% of all branches          (38.47%)
+    87,088,892,591      L1-dcache-loads           #    1.400 G/sec                    (38.48%)
+       459,907,269      L1-dcache-load-misses     #    0.53% of all L1-dcache accesses  (38.48%)
+        28,138,296      LLC-loads                 #  452.319 K/sec                    (30.78%)
+           212,827      LLC-load-misses           #    0.76% of all LL-cache accesses  (30.77%)
+   <not supported>      L1-icache-loads                                             
+       411,916,071      L1-icache-load-misses                                         (30.76%)
+    87,170,461,796      dTLB-loads                #    1.401 G/sec                    (30.76%)
+         7,554,479      dTLB-load-misses          #    0.01% of all dTLB cache accesses  (30.76%)
+         5,771,793      iTLB-loads                #   92.781 K/sec                    (30.76%)
+        38,583,735      iTLB-load-misses          #  668.49% of all iTLB cache accesses  (30.76%)
+   <not supported>      L1-dcache-prefetches                                        
+   <not supported>      L1-dcache-prefetch-misses                                   
+
+      62.221512841 seconds time elapsed
+
+      62.205757000 seconds user
+       0.003999000 seconds sys
+
+
