@@ -1,0 +1,12 @@
+prompts:
+given run_clean.py that I have, that is running like run_benchmark.py, but without the overhead of pyperformance lib, I want you to write similar tests for the following benchmarks:
+1 crypto_pyaes
+2 Deepcopy
+3 Logging
+4 Mdp
+5 Pathlib
+6 Pickle and pickle_dict
+7 Pyflate
+8 unpack_sequence
+9 json_dumps
+10 gc_collect

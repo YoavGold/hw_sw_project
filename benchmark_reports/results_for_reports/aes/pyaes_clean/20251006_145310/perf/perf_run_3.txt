@@ -1,0 +1,32 @@
+# started on Mon Oct  6 14:56:19 2025
+
+
+ Performance counter stats for '/csl/yoav.gold/hw_sw_project/.venv_dbg/bin/python pyaes_clean.py':
+
+         60,226.15 msec task-clock                #    1.000 CPUs utilized          
+               175      context-switches          #    2.906 /sec                   
+                 7      cpu-migrations            #    0.116 /sec                   
+            12,993      page-faults               #  215.737 /sec                   
+   156,373,464,146      cycles                    #    2.596 GHz                      (30.77%)
+   372,572,370,871      instructions              #    2.38  insn per cycle           (38.46%)
+    94,766,511,574      branches                  #    1.574 G/sec                    (38.47%)
+       316,529,878      branch-misses             #    0.33% of all branches          (38.48%)
+    87,179,191,517      L1-dcache-loads           #    1.448 G/sec                    (38.48%)
+       442,780,974      L1-dcache-load-misses     #    0.51% of all L1-dcache accesses  (38.47%)
+        24,794,724      LLC-loads                 #  411.694 K/sec                    (30.77%)
+           163,098      LLC-load-misses           #    0.66% of all LL-cache accesses  (30.76%)
+   <not supported>      L1-icache-loads                                             
+       261,505,674      L1-icache-load-misses                                         (30.76%)
+    87,200,355,310      dTLB-loads                #    1.448 G/sec                    (30.76%)
+         4,420,906      dTLB-load-misses          #    0.01% of all dTLB cache accesses  (30.76%)
+         2,855,213      iTLB-loads                #   47.408 K/sec                    (30.76%)
+         1,912,185      iTLB-load-misses          #   66.97% of all iTLB cache accesses  (30.76%)
+   <not supported>      L1-dcache-prefetches                                        
+   <not supported>      L1-dcache-prefetch-misses                                   
+
+      60.237674388 seconds time elapsed
+
+      60.194929000 seconds user
+       0.031997000 seconds sys
+
+

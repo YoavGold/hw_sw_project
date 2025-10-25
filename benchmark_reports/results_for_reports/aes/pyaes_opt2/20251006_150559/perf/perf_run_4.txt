@@ -1,0 +1,32 @@
+# started on Mon Oct  6 15:06:38 2025
+
+
+ Performance counter stats for '/csl/yoav.gold/hw_sw_project/.venv_dbg/bin/python pyaes_opt2.py':
+
+         12,047.46 msec task-clock                #    1.848 CPUs utilized          
+               725      context-switches          #   60.179 /sec                   
+                 5      cpu-migrations            #    0.415 /sec                   
+            38,298      page-faults               #    3.179 K/sec                  
+    31,121,197,973      cycles                    #    2.583 GHz                      (30.60%)
+    38,924,248,742      instructions              #    1.25  insn per cycle           (38.39%)
+     8,700,175,201      branches                  #  722.159 M/sec                    (38.65%)
+        35,147,324      branch-misses             #    0.40% of all branches          (43.14%)
+     8,291,598,041      L1-dcache-loads           #  688.245 M/sec                    (43.14%)
+       253,034,518      L1-dcache-load-misses     #    3.05% of all L1-dcache accesses  (42.29%)
+        29,908,807      LLC-loads                 #    2.483 M/sec                    (33.22%)
+         1,124,540      LLC-load-misses           #    3.76% of all LL-cache accesses  (32.50%)
+   <not supported>      L1-icache-loads                                             
+       205,356,862      L1-icache-load-misses                                         (31.84%)
+     9,166,289,129      dTLB-loads                #  760.849 M/sec                    (31.18%)
+         2,960,368      dTLB-load-misses          #    0.03% of all dTLB cache accesses  (30.51%)
+        35,783,038      iTLB-loads                #    2.970 M/sec                    (30.57%)
+         7,623,964      iTLB-load-misses          #   21.31% of all iTLB cache accesses  (30.54%)
+   <not supported>      L1-dcache-prefetches                                        
+   <not supported>      L1-dcache-prefetch-misses                                   
+
+       6.519314755 seconds time elapsed
+
+      11.919521000 seconds user
+       0.136223000 seconds sys
+
+
