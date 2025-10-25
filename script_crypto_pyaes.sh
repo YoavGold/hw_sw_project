@@ -23,7 +23,7 @@ source "$VENV_DIR/bin/activate"
 # Install dependencies
 echo "[INFO] Installing required packages..."
 pip install -U pip
-pip install numba numpy plotly pyinstrument pyperf pyperformance py-spy pyaes pandas
+pip install numba numpy plotly pyinstrument pyperf pyperformance py-spy pyaes pandas openpyxl
 
 # Run benchmarks
 LOG_DIR="results/aes"
