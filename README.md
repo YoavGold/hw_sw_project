@@ -11,6 +11,11 @@ The project currently focuses on the `crypto_pyaes` and `mdp` workloads from [`p
 ├── LICENSE                      # Project license (MIT)
 ├── README.md
 ├── pyperformance/               # Git submodule snapshot of pyperformance (benchmark sources)
+│   └── pyperformance/data-files/benchmarks/
+│       ├── bm_crypto_pyaes/     # AES benchmark variants (clean, optimized, optimized2)
+│       │   └── no_pyperf_versions/  # Standalone AES variants without pyperf wrapper
+│       └── bm_mdp/              # MDP benchmark variants (clean, opt2, opt3, opt4)
+│           └── no_pyperf_versions/  # Standalone MDP variants without pyperf wrapper
 ├── reports/                     # HTML and Excel reports for each benchmark
 │   ├── aes_results_...          # Timestamped AES benchmark reports
 │   └── mdp_results_...          # Timestamped MDP benchmark reports
@@ -37,6 +42,12 @@ The project currently focuses on the `crypto_pyaes` and `mdp` workloads from [`p
 ├── script_mdp.sh                # Shell wrapper for MDP benchmark suite
 └── .gitignore                   # VCS hygiene for generated artifacts
 ```
+
+> **Important:** The `bm_crypto_pyaes/` and `bm_mdp/` directories within the pyperformance submodule contain the core benchmark implementations that are central to this hardware/software co-design study. Each directory includes:
+> 
+> - **Multiple optimization variants**: These represent different levels of algorithmic and implementation optimizations, from clean baseline implementations to highly optimized versions with techniques like loop unrolling, memory access optimization, and numerical library integration.
+> - **`no_pyperf_versions/` subdirectories**: These contain standalone Python scripts that can be executed directly without the pyperf framework wrapper, making them suitable for detailed profiling, debugging, and hardware accelerator design analysis.
+> 
 
 > **Note:** The `results_for_reports/` directory contains the flame graphs and data used in the PDF report documents. Updated (and slightly different) results reside under the `results/` & `reports/` directories.
 
