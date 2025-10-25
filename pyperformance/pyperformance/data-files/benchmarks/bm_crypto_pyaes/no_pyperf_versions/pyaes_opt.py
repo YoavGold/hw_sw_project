@@ -35,7 +35,6 @@ def bench_pyaes(loops):
 
 
 def main():
-    import sys
     # Default to 100 loops, but allow override from command line
     loops = int(sys.argv[1]) if len(sys.argv) > 1 else 100
     bench_pyaes(loops)
