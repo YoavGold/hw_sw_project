@@ -1,5 +1,5 @@
 prompts:
-given run_clean.py that I have, that is running like run_benchmark.py, but without the overhead of pyperformnace lib, I want you to write similar tests for the following benhmarks:
+given run_clean.py that I have, that is running like run_benchmark.py, but without the overhead of pyperformance lib, I want you to write similar tests for the following benchmarks:
 1 crypto_pyaes
 2 Deepcopy
 3 Logging
