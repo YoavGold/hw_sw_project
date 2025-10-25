@@ -1,0 +1,491 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="298" onload="init(evt)" viewBox="0 0 1200 298" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:monospace; font-size:12px }
+#title { text-anchor:middle; font-size:17px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 12;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = true;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="298" fill="url(#background)"/><text id="title" fill="rgb(0,0,0)" x="50.0000%" y="24.00">.venv_dbg/bin/py-spy record -o results/mdp/mdp_opt3/20251025_192939/flamegraph/flamegraph_pyspy_mdp_opt3.svg -r 100 -- .venv_dbg/bin/python3 pyperformance/pyperformance/data-files/benchmarks/bm_mdp/no_pyperf_versions/mdp_opt3.py</text><text id="details" fill="rgb(0,0,0)" x="10" y="40.00"> </text><text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="24.00">Reset Zoom</text><text id="search" fill="rgb(0,0,0)" x="1190" y="24.00">Search</text><text id="matched" fill="rgb(0,0,0)" x="1190" y="287.00"> </text><svg id="frames" x="10" width="1180" total_samples="1720"><g><title>build_graph (mdp_opt3.py:208) (2 samples, 0.12%)</title><rect x="0.6977%" y="132" width="0.1163%" height="15" fill="rgb(227,0,7)" fg:x="12" fg:w="2"/><text x="0.9477%" y="142.50"></text></g><g><title>build_graph (mdp_opt3.py:209) (7 samples, 0.41%)</title><rect x="0.8140%" y="132" width="0.4070%" height="15" fill="rgb(217,0,24)" fg:x="14" fg:w="7"/><text x="1.0640%" y="142.50"></text></g><g><title>build_graph (mdp_opt3.py:213) (3 samples, 0.17%)</title><rect x="1.2791%" y="132" width="0.1744%" height="15" fill="rgb(221,193,54)" fg:x="22" fg:w="3"/><text x="1.5291%" y="142.50"></text></g><g><title>getSuccessors (mdp_opt3.py:184) (2 samples, 0.12%)</title><rect x="1.3372%" y="148" width="0.1163%" height="15" fill="rgb(248,212,6)" fg:x="23" fg:w="2"/><text x="1.5872%" y="158.50"></text></g><g><title>build_graph (mdp_opt3.py:215) (2 samples, 0.12%)</title><rect x="1.4535%" y="132" width="0.1163%" height="15" fill="rgb(208,68,35)" fg:x="25" fg:w="2"/><text x="1.7035%" y="142.50"></text></g><g><title>build_graph (mdp_opt3.py:216) (2 samples, 0.12%)</title><rect x="1.5698%" y="132" width="0.1163%" height="15" fill="rgb(232,128,0)" fg:x="27" fg:w="2"/><text x="1.8198%" y="142.50"></text></g><g><title>build_graph (mdp_opt3.py:217) (3 samples, 0.17%)</title><rect x="1.6860%" y="132" width="0.1744%" height="15" fill="rgb(207,160,47)" fg:x="29" fg:w="3"/><text x="1.9360%" y="142.50"></text></g><g><title>getSuccessors (mdp_opt3.py:167) (4 samples, 0.23%)</title><rect x="2.0349%" y="148" width="0.2326%" height="15" fill="rgb(228,23,34)" fg:x="35" fg:w="4"/><text x="2.2849%" y="158.50"></text></g><g><title>_getSuccessorsB (mdp_opt3.py:139) (3 samples, 0.17%)</title><rect x="2.2674%" y="164" width="0.1744%" height="15" fill="rgb(218,30,26)" fg:x="39" fg:w="3"/><text x="2.5174%" y="174.50"></text></g><g><title>_getSuccessorsB (mdp_opt3.py:140) (2 samples, 0.12%)</title><rect x="2.4419%" y="164" width="0.1163%" height="15" fill="rgb(220,122,19)" fg:x="42" fg:w="2"/><text x="2.6919%" y="174.50"></text></g><g><title>applyHPChange (mdp_opt3.py:58) (7 samples, 0.41%)</title><rect x="3.0233%" y="228" width="0.4070%" height="15" fill="rgb(250,228,42)" fg:x="52" fg:w="7"/><text x="3.2733%" y="238.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:80) (24 samples, 1.40%)</title><rect x="2.9651%" y="212" width="1.3953%" height="15" fill="rgb(240,193,28)" fg:x="51" fg:w="24"/><text x="3.2151%" y="222.50"></text></g><g><title>applyHPChange (mdp_opt3.py:59) (16 samples, 0.93%)</title><rect x="3.4302%" y="228" width="0.9302%" height="15" fill="rgb(216,20,37)" fg:x="59" fg:w="16"/><text x="3.6802%" y="238.50"></text></g><g><title>_replace (collections/__init__.py:431) (15 samples, 0.87%)</title><rect x="3.4884%" y="244" width="0.8721%" height="15" fill="rgb(206,188,39)" fg:x="60" fg:w="15"/><text x="3.7384%" y="254.50"></text></g><g><title>_make (collections/__init__.py:422) (4 samples, 0.23%)</title><rect x="4.1279%" y="260" width="0.2326%" height="15" fill="rgb(217,207,13)" fg:x="71" fg:w="4"/><text x="4.3779%" y="270.50"></text></g><g><title>_applyActionPair (mdp_opt3.py:125) (32 samples, 1.86%)</title><rect x="2.6163%" y="180" width="1.8605%" height="15" fill="rgb(231,73,38)" fg:x="45" fg:w="32"/><text x="2.8663%" y="190.50">_..</text></g><g><title>_applyAction (mdp_opt3.py:100) (30 samples, 1.74%)</title><rect x="2.7326%" y="196" width="1.7442%" height="15" fill="rgb(225,20,46)" fg:x="47" fg:w="30"/><text x="2.9826%" y="206.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:81) (2 samples, 0.12%)</title><rect x="4.3605%" y="212" width="0.1163%" height="15" fill="rgb(210,31,41)" fg:x="75" fg:w="2"/><text x="4.6105%" y="222.50"></text></g><g><title>_getSuccessorsB (mdp_opt3.py:142) (37 samples, 2.15%)</title><rect x="2.6163%" y="164" width="2.1512%" height="15" fill="rgb(221,200,47)" fg:x="45" fg:w="37"/><text x="2.8663%" y="174.50">_..</text></g><g><title>_applyActionPair (mdp_opt3.py:132) (5 samples, 0.29%)</title><rect x="4.4767%" y="180" width="0.2907%" height="15" fill="rgb(226,26,5)" fg:x="77" fg:w="5"/><text x="4.7267%" y="190.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:88) (3 samples, 0.17%)</title><rect x="5.0581%" y="212" width="0.1744%" height="15" fill="rgb(249,33,26)" fg:x="87" fg:w="3"/><text x="5.3081%" y="222.50"></text></g><g><title>applyHPChange (mdp_opt3.py:58) (50 samples, 2.91%)</title><rect x="5.9302%" y="228" width="2.9070%" height="15" fill="rgb(235,183,28)" fg:x="102" fg:w="50"/><text x="6.1802%" y="238.50">ap..</text></g><g><title>_make (collections/__init__.py:422) (64 samples, 3.72%)</title><rect x="13.3721%" y="260" width="3.7209%" height="15" fill="rgb(221,5,38)" fg:x="230" fg:w="64"/><text x="13.6221%" y="270.50">_mak..</text></g><g><title>_applyActionSide1 (mdp_opt3.py:93) (209 samples, 12.15%)</title><rect x="5.2907%" y="212" width="12.1512%" height="15" fill="rgb(247,18,42)" fg:x="91" fg:w="209"/><text x="5.5407%" y="222.50">_applyActionSide1 ..</text></g><g><title>applyHPChange (mdp_opt3.py:59) (148 samples, 8.60%)</title><rect x="8.8372%" y="228" width="8.6047%" height="15" fill="rgb(241,131,45)" fg:x="152" fg:w="148"/><text x="9.0872%" y="238.50">applyHPChang..</text></g><g><title>_replace (collections/__init__.py:431) (128 samples, 7.44%)</title><rect x="10.0000%" y="244" width="7.4419%" height="15" fill="rgb(249,31,29)" fg:x="172" fg:w="128"/><text x="10.2500%" y="254.50">_replace (..</text></g><g><title>_make (collections/__init__.py:423) (6 samples, 0.35%)</title><rect x="17.0930%" y="260" width="0.3488%" height="15" fill="rgb(225,111,53)" fg:x="294" fg:w="6"/><text x="17.3430%" y="270.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:94) (7 samples, 0.41%)</title><rect x="17.4419%" y="212" width="0.4070%" height="15" fill="rgb(238,160,17)" fg:x="300" fg:w="7"/><text x="17.6919%" y="222.50"></text></g><g><title>_applyAction (mdp_opt3.py:103) (267 samples, 15.52%)</title><rect x="4.9419%" y="196" width="15.5233%" height="15" fill="rgb(214,148,48)" fg:x="85" fg:w="267"/><text x="5.1919%" y="206.50">_applyAction (mdp_opt3.p..</text></g><g><title>_applyActionSide1 (mdp_opt3.py:95) (45 samples, 2.62%)</title><rect x="17.8488%" y="212" width="2.6163%" height="15" fill="rgb(232,36,49)" fg:x="307" fg:w="45"/><text x="18.0988%" y="222.50">_a..</text></g><g><title>_applyAction (mdp_opt3.py:104) (9 samples, 0.52%)</title><rect x="20.4651%" y="196" width="0.5233%" height="15" fill="rgb(209,103,24)" fg:x="352" fg:w="9"/><text x="20.7151%" y="206.50"></text></g><g><title>&lt;dictcomp&gt; (mdp_opt3.py:104) (5 samples, 0.29%)</title><rect x="20.6977%" y="212" width="0.2907%" height="15" fill="rgb(229,88,8)" fg:x="356" fg:w="5"/><text x="20.9477%" y="222.50"></text></g><g><title>_applyActionPair (mdp_opt3.py:125) (280 samples, 16.28%)</title><rect x="4.8256%" y="180" width="16.2791%" height="15" fill="rgb(213,181,19)" fg:x="83" fg:w="280"/><text x="5.0756%" y="190.50">_applyActionPair (mdp_opt..</text></g><g><title>_applyAction (mdp_opt3.py:99) (2 samples, 0.12%)</title><rect x="20.9884%" y="196" width="0.1163%" height="15" fill="rgb(254,191,54)" fg:x="361" fg:w="2"/><text x="21.2384%" y="206.50"></text></g><g><title>_applyActionPair (mdp_opt3.py:131) (6 samples, 0.35%)</title><rect x="21.1628%" y="180" width="0.3488%" height="15" fill="rgb(241,83,37)" fg:x="364" fg:w="6"/><text x="21.4128%" y="190.50"></text></g><g><title>_getSuccessorsB (mdp_opt3.py:144) (295 samples, 17.15%)</title><rect x="4.7674%" y="164" width="17.1512%" height="15" fill="rgb(233,36,39)" fg:x="82" fg:w="295"/><text x="5.0174%" y="174.50">_getSuccessorsB (mdp_opt3.p..</text></g><g><title>_applyActionPair (mdp_opt3.py:132) (7 samples, 0.41%)</title><rect x="21.5116%" y="180" width="0.4070%" height="15" fill="rgb(226,3,54)" fg:x="370" fg:w="7"/><text x="21.7616%" y="190.50"></text></g><g><title>getSuccessors (mdp_opt3.py:178) (347 samples, 20.17%)</title><rect x="2.2674%" y="148" width="20.1744%" height="15" fill="rgb(245,192,40)" fg:x="39" fg:w="347"/><text x="2.5174%" y="158.50">getSuccessors (mdp_opt3.py:178)</text></g><g><title>_getSuccessorsB (mdp_opt3.py:149) (9 samples, 0.52%)</title><rect x="21.9186%" y="164" width="0.5233%" height="15" fill="rgb(238,167,29)" fg:x="377" fg:w="9"/><text x="22.1686%" y="174.50"></text></g><g><title>applyHPChange (mdp_opt3.py:58) (12 samples, 0.70%)</title><rect x="22.9070%" y="212" width="0.6977%" height="15" fill="rgb(232,182,51)" fg:x="394" fg:w="12"/><text x="23.1570%" y="222.50"></text></g><g><title>_make (collections/__init__.py:422) (8 samples, 0.47%)</title><rect x="24.5349%" y="244" width="0.4651%" height="15" fill="rgb(231,60,39)" fg:x="422" fg:w="8"/><text x="24.7849%" y="254.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:93) (40 samples, 2.33%)</title><rect x="22.7326%" y="196" width="2.3256%" height="15" fill="rgb(208,69,12)" fg:x="391" fg:w="40"/><text x="22.9826%" y="206.50">_..</text></g><g><title>applyHPChange (mdp_opt3.py:59) (25 samples, 1.45%)</title><rect x="23.6047%" y="212" width="1.4535%" height="15" fill="rgb(235,93,37)" fg:x="406" fg:w="25"/><text x="23.8547%" y="222.50"></text></g><g><title>_replace (collections/__init__.py:431) (19 samples, 1.10%)</title><rect x="23.9535%" y="228" width="1.1047%" height="15" fill="rgb(213,116,39)" fg:x="412" fg:w="19"/><text x="24.2035%" y="238.50"></text></g><g><title>_applyAction (mdp_opt3.py:100) (47 samples, 2.73%)</title><rect x="22.6744%" y="180" width="2.7326%" height="15" fill="rgb(222,207,29)" fg:x="390" fg:w="47"/><text x="22.9244%" y="190.50">_a..</text></g><g><title>_applyActionSide1 (mdp_opt3.py:95) (6 samples, 0.35%)</title><rect x="25.0581%" y="196" width="0.3488%" height="15" fill="rgb(206,96,30)" fg:x="431" fg:w="6"/><text x="25.3081%" y="206.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:92) (2 samples, 0.12%)</title><rect x="25.5233%" y="196" width="0.1163%" height="15" fill="rgb(218,138,4)" fg:x="439" fg:w="2"/><text x="25.7733%" y="206.50"></text></g><g><title>applyHPChange (mdp_opt3.py:58) (14 samples, 0.81%)</title><rect x="25.9302%" y="212" width="0.8140%" height="15" fill="rgb(250,191,14)" fg:x="446" fg:w="14"/><text x="26.1802%" y="222.50"></text></g><g><title>_applyActionSide1 (mdp_opt3.py:93) (70 samples, 4.07%)</title><rect x="25.6395%" y="196" width="4.0698%" height="15" fill="rgb(239,60,40)" fg:x="441" fg:w="70"/><text x="25.8895%" y="206.50">_app..</text></g><g><title>applyHPChange (mdp_opt3.py:59) (51 samples, 2.97%)</title><rect x="26.7442%" y="212" width="2.9651%" height="15" fill="rgb(206,27,48)" fg:x="460" fg:w="51"/><text x="26.9942%" y="222.50">app..</text></g><g><title>_replace (collections/__init__.py:431) (42 samples, 2.44%)</title><rect x="27.2674%" y="228" width="2.4419%" height="15" fill="rgb(225,35,8)" fg:x="469" fg:w="42"/><text x="27.5174%" y="238.50">_r..</text></g><g><title>_make (collections/__init__.py:422) (21 samples, 1.22%)</title><rect x="28.4884%" y="244" width="1.2209%" height="15" fill="rgb(250,213,24)" fg:x="490" fg:w="21"/><text x="28.7384%" y="254.50"></text></g><g><title>_applyAction (mdp_opt3.py:103) (84 samples, 4.88%)</title><rect x="25.4070%" y="180" width="4.8837%" height="15" fill="rgb(247,123,22)" fg:x="437" fg:w="84"/><text x="25.6570%" y="190.50">_apply..</text></g><g><title>_applyActionSide1 (mdp_opt3.py:95) (9 samples, 0.52%)</title><rect x="29.7674%" y="196" width="0.5233%" height="15" fill="rgb(231,138,38)" fg:x="512" fg:w="9"/><text x="30.0174%" y="206.50"></text></g><g><title>_getSuccessorsC (mdp_opt3.py:155) (149 samples, 8.66%)</title><rect x="22.5000%" y="164" width="8.6628%" height="15" fill="rgb(231,145,46)" fg:x="387" fg:w="149"/><text x="22.7500%" y="174.50">_getSuccesso..</text></g><g><title>_applyAction (mdp_opt3.py:104) (15 samples, 0.87%)</title><rect x="30.2907%" y="180" width="0.8721%" height="15" fill="rgb(251,118,11)" fg:x="521" fg:w="15"/><text x="30.5407%" y="190.50"></text></g><g><title>&lt;dictcomp&gt; (mdp_opt3.py:104) (15 samples, 0.87%)</title><rect x="30.2907%" y="196" width="0.8721%" height="15" fill="rgb(217,147,25)" fg:x="521" fg:w="15"/><text x="30.5407%" y="206.50"></text></g><g><title>_getSuccessorsC (mdp_opt3.py:158) (3 samples, 0.17%)</title><rect x="31.1628%" y="164" width="0.1744%" height="15" fill="rgb(247,81,37)" fg:x="536" fg:w="3"/><text x="31.4128%" y="174.50"></text></g><g><title>_getSuccessorsC (mdp_opt3.py:161) (8 samples, 0.47%)</title><rect x="31.3372%" y="164" width="0.4651%" height="15" fill="rgb(209,12,38)" fg:x="539" fg:w="8"/><text x="31.5872%" y="174.50"></text></g><g><title>_getSuccessorsC (mdp_opt3.py:162) (15 samples, 0.87%)</title><rect x="31.8023%" y="164" width="0.8721%" height="15" fill="rgb(227,1,9)" fg:x="547" fg:w="15"/><text x="32.0523%" y="174.50"></text></g><g><title>getSuccessors (mdp_opt3.py:180) (211 samples, 12.27%)</title><rect x="22.4419%" y="148" width="12.2674%" height="15" fill="rgb(248,47,43)" fg:x="386" fg:w="211"/><text x="22.6919%" y="158.50">getSuccessors (mdp..</text></g><g><title>_getSuccessorsC (mdp_opt3.py:163) (35 samples, 2.03%)</title><rect x="32.6744%" y="164" width="2.0349%" height="15" fill="rgb(221,10,30)" fg:x="562" fg:w="35"/><text x="32.9244%" y="174.50">_..</text></g><g><title>&lt;lambda&gt; (mdp_opt3.py:163) (14 samples, 0.81%)</title><rect x="33.8953%" y="180" width="0.8140%" height="15" fill="rgb(210,229,1)" fg:x="583" fg:w="14"/><text x="34.1453%" y="190.50"></text></g><g><title>getSuccessors (mdp_opt3.py:182) (3 samples, 0.17%)</title><rect x="34.7674%" y="148" width="0.1744%" height="15" fill="rgb(222,148,37)" fg:x="598" fg:w="3"/><text x="35.0174%" y="158.50"></text></g><g><title>&lt;listcomp&gt; (mdp_opt3.py:182) (3 samples, 0.17%)</title><rect x="34.7674%" y="164" width="0.1744%" height="15" fill="rgb(234,67,33)" fg:x="598" fg:w="3"/><text x="35.0174%" y="174.50"></text></g><g><title>build_graph (mdp_opt3.py:229) (567 samples, 32.97%)</title><rect x="2.0349%" y="132" width="32.9651%" height="15" fill="rgb(247,98,35)" fg:x="35" fg:w="567"/><text x="2.2849%" y="142.50">build_graph (mdp_opt3.py:229)</text></g><g><title>build_graph (mdp_opt3.py:232) (12 samples, 0.70%)</title><rect x="35.0581%" y="132" width="0.6977%" height="15" fill="rgb(247,138,52)" fg:x="603" fg:w="12"/><text x="35.3081%" y="142.50"></text></g><g><title>build_graph (mdp_opt3.py:233) (4 samples, 0.23%)</title><rect x="35.7558%" y="132" width="0.2326%" height="15" fill="rgb(213,79,30)" fg:x="615" fg:w="4"/><text x="36.0058%" y="142.50"></text></g><g><title>evaluate (mdp_opt3.py:251) (625 samples, 36.34%)</title><rect x="0.6977%" y="116" width="36.3372%" height="15" fill="rgb(246,177,23)" fg:x="12" fg:w="625"/><text x="0.9477%" y="126.50">evaluate (mdp_opt3.py:251)</text></g><g><title>build_graph (mdp_opt3.py:234) (18 samples, 1.05%)</title><rect x="35.9884%" y="132" width="1.0465%" height="15" fill="rgb(230,62,27)" fg:x="619" fg:w="18"/><text x="36.2384%" y="142.50"></text></g><g><title>&lt;listcomp&gt; (mdp_opt3.py:272) (3 samples, 0.17%)</title><rect x="37.0349%" y="132" width="0.1744%" height="15" fill="rgb(216,154,8)" fg:x="637" fg:w="3"/><text x="37.2849%" y="142.50"></text></g><g><title>topoSort (mdp_opt3.py:10) (3 samples, 0.17%)</title><rect x="37.2093%" y="132" width="0.1744%" height="15" fill="rgb(244,35,45)" fg:x="640" fg:w="3"/><text x="37.4593%" y="142.50"></text></g><g><title>topoSort (mdp_opt3.py:11) (2 samples, 0.12%)</title><rect x="37.3837%" y="132" width="0.1163%" height="15" fill="rgb(251,115,12)" fg:x="643" fg:w="2"/><text x="37.6337%" y="142.50"></text></g><g><title>topoSort (mdp_opt3.py:12) (17 samples, 0.99%)</title><rect x="37.5000%" y="132" width="0.9884%" height="15" fill="rgb(240,54,50)" fg:x="645" fg:w="17"/><text x="37.7500%" y="142.50"></text></g><g><title>topoSort (mdp_opt3.py:13) (2 samples, 0.12%)</title><rect x="38.4884%" y="132" width="0.1163%" height="15" fill="rgb(233,84,52)" fg:x="662" fg:w="2"/><text x="38.7384%" y="142.50"></text></g><g><title>&lt;genexpr&gt; (mdp_opt3.py:15) (4 samples, 0.23%)</title><rect x="38.7791%" y="148" width="0.2326%" height="15" fill="rgb(207,117,47)" fg:x="667" fg:w="4"/><text x="39.0291%" y="158.50"></text></g><g><title>topoSort (mdp_opt3.py:15) (11 samples, 0.64%)</title><rect x="38.6047%" y="132" width="0.6395%" height="15" fill="rgb(249,43,39)" fg:x="664" fg:w="11"/><text x="38.8547%" y="142.50"></text></g><g><title>getSuccessorsList (mdp_opt3.py:190) (4 samples, 0.23%)</title><rect x="39.0116%" y="148" width="0.2326%" height="15" fill="rgb(209,38,44)" fg:x="671" fg:w="4"/><text x="39.2616%" y="158.50"></text></g><g><title>evaluate (mdp_opt3.py:272) (41 samples, 2.38%)</title><rect x="37.0349%" y="116" width="2.3837%" height="15" fill="rgb(236,212,23)" fg:x="637" fg:w="41"/><text x="37.2849%" y="126.50">ev..</text></g><g><title>topoSort (mdp_opt3.py:9) (2 samples, 0.12%)</title><rect x="39.3023%" y="132" width="0.1163%" height="15" fill="rgb(242,79,21)" fg:x="676" fg:w="2"/><text x="39.5523%" y="142.50"></text></g><g><title>evaluate (mdp_opt3.py:275) (4 samples, 0.23%)</title><rect x="39.4186%" y="116" width="0.2326%" height="15" fill="rgb(211,96,35)" fg:x="678" fg:w="4"/><text x="39.6686%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:276) (23 samples, 1.34%)</title><rect x="39.6512%" y="116" width="1.3372%" height="15" fill="rgb(253,215,40)" fg:x="682" fg:w="23"/><text x="39.9012%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:277) (18 samples, 1.05%)</title><rect x="40.9884%" y="116" width="1.0465%" height="15" fill="rgb(211,81,21)" fg:x="705" fg:w="18"/><text x="41.2384%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:280) (22 samples, 1.28%)</title><rect x="42.0349%" y="116" width="1.2791%" height="15" fill="rgb(208,190,38)" fg:x="723" fg:w="22"/><text x="42.2849%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:281) (16 samples, 0.93%)</title><rect x="43.3140%" y="116" width="0.9302%" height="15" fill="rgb(235,213,38)" fg:x="745" fg:w="16"/><text x="43.5640%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:283) (29 samples, 1.69%)</title><rect x="44.2442%" y="116" width="1.6860%" height="15" fill="rgb(237,122,38)" fg:x="761" fg:w="29"/><text x="44.4942%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:284) (42 samples, 2.44%)</title><rect x="45.9302%" y="116" width="2.4419%" height="15" fill="rgb(244,218,35)" fg:x="790" fg:w="42"/><text x="46.1802%" y="126.50">ev..</text></g><g><title>evaluate (mdp_opt3.py:285) (46 samples, 2.67%)</title><rect x="48.3721%" y="116" width="2.6744%" height="15" fill="rgb(240,68,47)" fg:x="832" fg:w="46"/><text x="48.6221%" y="126.50">ev..</text></g><g><title>evaluate (mdp_opt3.py:286) (26 samples, 1.51%)</title><rect x="51.0465%" y="116" width="1.5116%" height="15" fill="rgb(210,16,53)" fg:x="878" fg:w="26"/><text x="51.2965%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:287) (11 samples, 0.64%)</title><rect x="52.5581%" y="116" width="0.6395%" height="15" fill="rgb(235,124,12)" fg:x="904" fg:w="11"/><text x="52.8081%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:288) (20 samples, 1.16%)</title><rect x="53.1977%" y="116" width="1.1628%" height="15" fill="rgb(224,169,11)" fg:x="915" fg:w="20"/><text x="53.4477%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:289) (7 samples, 0.41%)</title><rect x="54.3605%" y="116" width="0.4070%" height="15" fill="rgb(250,166,2)" fg:x="935" fg:w="7"/><text x="54.6105%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:290) (20 samples, 1.16%)</title><rect x="54.7674%" y="116" width="1.1628%" height="15" fill="rgb(242,216,29)" fg:x="942" fg:w="20"/><text x="55.0174%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:292) (23 samples, 1.34%)</title><rect x="55.9302%" y="116" width="1.3372%" height="15" fill="rgb(230,116,27)" fg:x="962" fg:w="23"/><text x="56.1802%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:294) (2 samples, 0.12%)</title><rect x="57.2674%" y="116" width="0.1163%" height="15" fill="rgb(228,99,48)" fg:x="985" fg:w="2"/><text x="57.5174%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:295) (3 samples, 0.17%)</title><rect x="57.3837%" y="116" width="0.1744%" height="15" fill="rgb(253,11,6)" fg:x="987" fg:w="3"/><text x="57.6337%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:296) (172 samples, 10.00%)</title><rect x="57.5581%" y="116" width="10.0000%" height="15" fill="rgb(247,143,39)" fg:x="990" fg:w="172"/><text x="57.8081%" y="126.50">evaluate (mdp_..</text></g><g><title>evaluate (mdp_opt3.py:297) (214 samples, 12.44%)</title><rect x="67.5581%" y="116" width="12.4419%" height="15" fill="rgb(236,97,10)" fg:x="1162" fg:w="214"/><text x="67.8081%" y="126.50">evaluate (mdp_opt3...</text></g><g><title>evaluate (mdp_opt3.py:298) (247 samples, 14.36%)</title><rect x="80.0000%" y="116" width="14.3605%" height="15" fill="rgb(233,208,19)" fg:x="1376" fg:w="247"/><text x="80.2500%" y="126.50">evaluate (mdp_opt3.py:..</text></g><g><title>evaluate (mdp_opt3.py:299) (25 samples, 1.45%)</title><rect x="94.3605%" y="116" width="1.4535%" height="15" fill="rgb(216,164,2)" fg:x="1623" fg:w="25"/><text x="94.6105%" y="126.50"></text></g><g><title>evaluate (mdp_opt3.py:300) (12 samples, 0.70%)</title><rect x="95.8140%" y="116" width="0.6977%" height="15" fill="rgb(220,129,5)" fg:x="1648" fg:w="12"/><text x="96.0640%" y="126.50"></text></g><g><title>all (1,720 samples, 100%)</title><rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(242,17,10)" fg:x="0" fg:w="1720"/><text x="0.2500%" y="62.50"></text></g><g><title>&lt;module&gt; (mdp_opt3.py:329) (1,720 samples, 100.00%)</title><rect x="0.0000%" y="68" width="100.0000%" height="15" fill="rgb(242,107,0)" fg:x="0" fg:w="1720"/><text x="0.2500%" y="78.50">&lt;module&gt; (mdp_opt3.py:329)</text></g><g><title>main (mdp_opt3.py:325) (1,720 samples, 100.00%)</title><rect x="0.0000%" y="84" width="100.0000%" height="15" fill="rgb(251,28,31)" fg:x="0" fg:w="1720"/><text x="0.2500%" y="94.50">main (mdp_opt3.py:325)</text></g><g><title>bench_mdp (mdp_opt3.py:316) (1,720 samples, 100.00%)</title><rect x="0.0000%" y="100" width="100.0000%" height="15" fill="rgb(233,223,10)" fg:x="0" fg:w="1720"/><text x="0.2500%" y="110.50">bench_mdp (mdp_opt3.py:316)</text></g><g><title>evaluate (mdp_opt3.py:302) (60 samples, 3.49%)</title><rect x="96.5116%" y="116" width="3.4884%" height="15" fill="rgb(215,21,27)" fg:x="1660" fg:w="60"/><text x="96.7616%" y="126.50">eva..</text></g></svg></svg>
