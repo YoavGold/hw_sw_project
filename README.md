@@ -11,6 +11,11 @@ The project currently focuses on the `crypto_pyaes` and `mdp` workloads from [`p
 ├── LICENSE                      # Project license (MIT)
 ├── README.md
 ├── pyperformance/               # Git submodule snapshot of pyperformance (benchmark sources)
+│   └── pyperformance/data-files/benchmarks/
+│       ├── bm_crypto_pyaes/     # AES benchmark variants (clean, optimized, optimized2)
+│       │   └── no_pyperf_versions/  # Standalone AES variants without pyperf wrapper
+│       └── bm_mdp/              # MDP benchmark variants (clean, opt2, opt3, opt4)
+│           └── no_pyperf_versions/  # Standalone MDP variants without pyperf wrapper
 ├── reports/                     # HTML and Excel reports for each benchmark
 │   ├── aes_results_...          # Timestamped AES benchmark reports
 │   └── mdp_results_...          # Timestamped MDP benchmark reports
