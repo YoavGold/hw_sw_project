@@ -1,0 +1,32 @@
+# started on Sat Oct 11 15:54:31 2025
+
+
+ Performance counter stats for '../.venv_dbg/bin/python3 mdp_opt3.py 100':
+
+         16,671.25 msec task-clock                #    1.000 CPUs utilized          
+                64      context-switches          #    3.839 /sec                   
+                 6      cpu-migrations            #    0.360 /sec                   
+             7,641      page-faults               #  458.334 /sec                   
+    43,279,659,634      cycles                    #    2.596 GHz                      (30.73%)
+    94,903,773,763      instructions              #    2.19  insn per cycle           (38.43%)
+    22,352,739,868      branches                  #    1.341 G/sec                    (38.45%)
+       143,980,263      branch-misses             #    0.64% of all branches          (38.48%)
+    27,115,588,908      L1-dcache-loads           #    1.626 G/sec                    (38.50%)
+       364,195,679      L1-dcache-load-misses     #    1.34% of all L1-dcache accesses  (38.50%)
+       131,511,831      LLC-loads                 #    7.889 M/sec                    (30.79%)
+           872,860      LLC-load-misses           #    0.66% of all LL-cache accesses  (30.79%)
+   <not supported>      L1-icache-loads                                             
+       121,470,623      L1-icache-load-misses                                         (30.79%)
+    27,194,639,954      dTLB-loads                #    1.631 G/sec                    (30.78%)
+         8,743,764      dTLB-load-misses          #    0.03% of all dTLB cache accesses  (30.76%)
+        10,570,462      iTLB-loads                #  634.053 K/sec                    (30.73%)
+           788,492      iTLB-load-misses          #    7.46% of all iTLB cache accesses  (30.71%)
+   <not supported>      L1-dcache-prefetches                                        
+   <not supported>      L1-dcache-prefetch-misses                                   
+
+      16.676025781 seconds time elapsed
+
+      16.659880000 seconds user
+       0.011997000 seconds sys
+
+
