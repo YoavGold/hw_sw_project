@@ -1,4 +1,5 @@
 prompts:
+here is some of the prompts I used for this project:
 given run_clean.py that I have, that is running like run_benchmark.py, but without the overhead of pyperformance lib, I want you to write similar tests for the following benchmarks:
 1 crypto_pyaes
 2 Deepcopy
@@ -10,3 +11,43 @@ given run_clean.py that I have, that is running like run_benchmark.py, but witho
 8 unpack_sequence
 9 json_dumps
 10 gc_collect
+
+
+I would like to create a python venv so that I can work with the pyperformance , and later on all of the stuff I will need. how should I do so ?
+
+I would like to get a detailed explanation about this code: (and send over some complicated function in MDP)
+
+explain the modes of operation in AES
+
+in the MDP clean benchmark, which is attached - what is the job of topsort function ?
+
+I want you to give me the byte code of the function encrypt, that starts on line 203:
+
+followed by:
+
+I want you to show me the repeated calculations in the byte code please.
+
+how much assembly instructions a byte code translate ? 
+
+so how much lines of assembly does this code have ? (and attached some code from AES)
+
+followed by:
+can you provide me a source for your estimation ? 
+
+following this code, I want you to do is: create a new script, that runs: pyaes_clean.py - flamegraph creation (until the program ends) pyaes_clean.py - perf stat - perf stat -d -d -d , run it 5 times, and save each time to a new text - between each run - run a util function that will flush the cache between each run.
+
+(later I fined tuned these scripts)
+
+can you please explain to me what is the Fraction module ? why it is slow ? in python
+
+I'm writing a presentation about my work. now I'm working on a background slide that will explain pyperformance benchamrk suite, what it contains, what it includes, etc'. can you write me this 1 -2 slides ?
+
+asked some script changes:
+I want it to be able to create the dataframe on the following structure of dirs (attached as zips two examples) can you make the needed changes ?
+
+followed by:
+ok, I also want that the html report builder script will use the same time stamp I provide him, as well as adding the name of the benchmark to the folder name: e.g : mdp_20251024_172254/
+is it possible to sort the output of the dataframe so that the best speedup will be the last column? (and the worse speedup will be the first column?
+can you add an option for geo mean calculation ? 
+
+I gave him a flamegraph and asked his opinion on where should I focus on making the benhmark runs faster.
